@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+
+# Project Settings
+NUMBER=1234567890;
+LOG_PATH="/var/log/MessageMe/log.txt"
+NGINX_FILE="MessageMe_nginx.conf"
+WEB_USER="REDACTED";
+
+
+# Run `sudo ./text_server` to install.
+if [ -z "$1" ]; then
+    if [[ $(whoami) = "root"  ]] ; then
+
+      echo "Running server setup..."
+
+      FULL_FILE_PATH="$(readlink -f $0)"
+      FILE_NAME="$(basename $FULL_FILE_PATH)"
+      FILE_DIR="$(dirname $FULL_FILE_PATH)"
+
+      # Create the LOGFILE if it doesn't exist.
+      echo "... Creating log-file"
+      mkdir -p $(dirname $LOG_PATH)
+      touch $LOG_PATH;
+      chown $WEB_USER $LOG_PATH;
+
+
+      # Based on: http://stackoverflow.com/a/630387/2456258
+      echo "... Deleting old /bin/ script"
+      SCRIPT_DEST="/bin/$FILE_NAME";
+      if [ -e $SCRIPT_DEST ]; then
+        echo "... Deleting old /bin/ script";
+        rm $SCRIPT_DEST;
+      fi
+      echo "... Adding current script path to /bin/"
+      ln -s $FULL_FILE_PATH $SCRIPT_DEST
+
+
+      # Set up the nginx path.
+      NGINX_DEST="/etc/nginx/sites-enabled/$NGINX_FILE";
+      if [ -e $NGINX_DEST ]; then
+        echo "... Deleting old nginx configuration";
+        rm $NGINX_DEST;
+      fi
+
+      echo "... Enabling nginx configuration"
+      ln -s $FILE_DIR/$NGINX_FILE $NGINX_DEST;
+      service nginx restart
+
+
+      echo "... Setup complete!"
+      exit 0;
+
+    fi
+fi
+
+
+
+# Argument Setup.
+MESSAGE=$1;
+TIME_DUE=$2;
+
+
+# Calculate when this datetime should be sent off.
+TIME_NOW=$(date +"%s");
+WAIT=$((TIME_DUE-TIME_NOW));
+
+send-text-from-textbelt () {
+  # Argument 1: The delay-time before calling curl.
+  if [ ! -z "$1" ]; then
+    sleep $1;
+  fi
+
+  RESPONSE=$(curl -s POST http://textbelt.com/text \
+                  -d number=$NUMBER \
+                  -d "message=$MESSAGE");
+
+  echo "'$(date)' delayed $WAIT @ $NUMBER ::: $RESPONSE" >> $LOG_PATH;
+
+}
+
+
+# If the message was already due, then send it off without delay.
+if [[ ! $WAIT -gt 0 ]]; then
+  send-text-from-textbelt &
+
+else
+  send-text-from-textbelt $WAIT &
+fi
+
+

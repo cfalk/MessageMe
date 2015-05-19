@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+MESSAGE=$1;
+SERVER_URL="REDACTED";
+USER="REDACTED"
+CURRENT_TIME=$(date +"%s");
+
+if [ -z "$1" ]; then
+  echo "Error: No message!"
+  exit 0
+fi
+
+
+# Set a delay-time if applicable.
+if [ ! -z "$2" ]; then
+   # If a delay-time supplied, calculate the final timestamp of send-time.
+   MINUTE=60;
+   HOUR=$((MINUTE * 60));
+   DAY=$((HOUR * 24));
+
+   STRING_ARR=($2);
+   QUANTITY=${STRING_ARR[0]}
+
+   # Calculate the delay according to what `$1` is.
+   if [[ $2 =~ ^[0-9]+$ ]] ; then # Default: Minutes
+     DELAY=$((MINUTE * $2));
+
+
+   elif [[ $2 =~ ^[0-9]+\ ?seconds?$ ]] ; then
+       DELAY=$QUANTITY;
+
+   elif [[ $2 =~ ^[0-9]+\ ?minutes?$ ]] ; then
+       DELAY=$(($QUANTITY * $MINUTE));
+
+   elif [[ $2 =~ ^[0-9]+\ ?hours?$ ]] ; then
+       DELAY=$(($QUANTITY * $HOUR));
+
+   elif [[ $2 =~ ^[0-9]+\ ?days?$ ]] ; then
+       DELAY=$(($QUANTITY * $DAY));
+
+   else
+     { # Try Block
+
+     DUE=$(date -d "$2" +"%s") &&
+     DELAY=$((DUE - CURRENT_TIME));
+
+     } || { # Catch Block
+
+     echo "Error: Unknown delay '$2'";
+     exit 0;
+
+     }
+
+   fi
+
+   TIME=$((CURRENT_TIME + DELAY));
+
+else
+   # If a delay-time is *not* supplied, then send the message now.
+   TIME=$CURRENT_TIME;
+
+fi
+
+
+text-message() {
+
+  RESPONSE=$(curl POST $SERVER_URL \
+                  --silent \
+                  --user $USER \
+                  -d "message=$MESSAGE" \
+                  -d "timestamp=$TIME");
+
+  echo -e $RESPONSE;
+
+}
+
+text-message;
